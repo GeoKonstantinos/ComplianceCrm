@@ -1,0 +1,32 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor
+
+<!-- Providers: self-closing, χωρίς ChildContent -->
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider MaxDisplayedSnackbars="3" PreventDuplicates="true" />
+
+<!-- Κανονικό layout -->
+<MudLayout>
+
+    <MudAppBar Elevation="2" Color="Color.Primary">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2">ComplianceCrm</MudText>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="DrawerVariant.Temporary" Color="Color.Surface">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="p-4">
+        <MudPaper Class="p-4" Elevation="1">
+            @Body
+        </MudPaper>
+    </MudMainContent>
+
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

@@ -1,0 +1,78 @@
+﻿@using ComplianceCrm.UI.Models.Customers
+@using ComplianceCrm.UI.Services
+@using MudBlazor
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialogContent>
+    <MudForm @ref="_form" Model="_model" Validated="OnValidated">
+        <MudCard>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_model.Name" Label="Name" Required="true" For="@(()=>_model.Name)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_model.Email" Label="Email" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_model.Phone" Label="Phone" />
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudForm>
+</MudDialogContent>
+
+<MudDialogActions>
+    <MudButton Color="Color.Default" OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+    <MudButton Color="Color.Primary" OnClick="SaveAsync" Variant="Variant.Filled">Save</MudButton>
+</MudDialogActions>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public CustomerDto? ExistingCustomer { get; set; }
+
+    private MudForm? _form;
+    private CreateCustomerRequest _model = new();
+
+    protected override void OnInitialized()
+    {
+        if (ExistingCustomer != null)
+        {
+            _model = new CreateCustomerRequest
+            {
+                Name = ExistingCustomer.Name,
+                Email = ExistingCustomer.Email,
+                Phone = ExistingCustomer.Phone
+            };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await _form!.Validate();
+    }
+
+    private async Task OnValidated()
+    {
+        try
+        {
+            if (ExistingCustomer == null)
+            {
+                var id = await Api.PostAsync<CreateCustomerRequest, long>("api/v1/customers", _model);
+                Snackbar.Add($"Customer #{id} created", Severity.Success);
+            }
+            else
+            {
+                await Api.PutAsync($"api/v1/customers/{ExistingCustomer.Id}", _model);
+                Snackbar.Add($"Customer #{ExistingCustomer.Id} updated", Severity.Success);
+            }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+    }
+}

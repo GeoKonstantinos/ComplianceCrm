@@ -1,0 +1,120 @@
+﻿@page "/calendar"
+@using ComplianceCrm.UI.Services
+@using Microsoft.JSInterop
+@using MudBlazor
+@inject IJSRuntime JS
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<div @ref="calendarEl" style="min-height: 720px;"></div>
+
+@code {
+    private ElementReference calendarEl;
+    private DotNetObjectReference<TasksCalendar>? _dotnetRef;
+    private List<CalendarEvent> _events = new();
+
+    // Αν έχεις ήδη TaskDto στο UI, χρησιμοποίησέ το. Αλλιώς μίνι μοντέλο:
+    private sealed class TaskDto
+    {
+        public long Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public DateTime StartDateUtc { get; set; }
+        public DateTime EndDateUtc { get; set; }
+        public string Status { get; set; } = "Pending";
+    }
+
+    private sealed class CalendarEvent
+    {
+        public string id { get; set; } = default!;
+        public string title { get; set; } = default!;
+        public DateTime start { get; set; }
+        public DateTime end { get; set; }
+        public string? color { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _dotnetRef = DotNetObjectReference.Create(this);
+        await LoadEventsAsync();
+
+        await JS.InvokeVoidAsync(
+            "complianceCalendar.init",
+            calendarEl,
+            _events,
+            _dotnetRef,
+            new
+            {
+                // προαιρετικά options (π.χ. αρχική ημερομηνία)
+                // initialDate = DateTime.UtcNow
+            });
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        // Προσαρμόσε το endpoint σου (π.χ. με ?from&to)
+        var tasks = await Api.GetAsync<List<TaskDto>>("api/v1/tasks?page=1&pageSize=100") ?? new();
+
+        _events = tasks.Select(t => new CalendarEvent
+        {
+            id = t.Id.ToString(),
+            title = t.Title,
+            start = t.StartDateUtc,
+            end = t.EndDateUtc,
+            color = StatusToColor(t.Status)
+        }).ToList();
+    }
+
+    private string StatusToColor(string status) => status switch
+    {
+        "Completed" => "#2e7d32", // green 700
+        "InProgress" => "#f57c00", // orange 700
+        "Pending" => "#c62828", // red 800
+        "OnHold" => "#6d4c41", // brown
+        _ => "#546e7a"  // blue grey
+    };
+
+    [JSInvokable]
+    public async Task OnEventDrop(string id, string? startIso, string? endIso)
+    {
+        var taskId = long.Parse(id);
+        try
+        {
+            await Api.PutAsync($"api/v1/tasks/{taskId}/reschedule", new
+            {
+                StartDateUtc = startIso,
+                EndDateUtc = endIso
+            });
+            Snackbar.Add($"Task #{taskId} rescheduled", Severity.Success);
+            // Ανανέωσε τα events από το API (προαιρετικά):
+            await LoadEventsAsync();
+            await JS.InvokeVoidAsync("complianceCalendar.setEvents", calendarEl, _events);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Reschedule failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnEventResize(string id, string? startIso, string? endIso)
+    {
+        await OnEventDrop(id, startIso, endIso);
+    }
+
+    [JSInvokable]
+    public Task OnEventClick(string id)
+    {
+        Snackbar.Add($"Open task #{id}", Severity.Info);
+        // εδώ μπορείς να ανοίξεις MudDialog για edit
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("complianceCalendar.destroy", calendarEl); }
+        catch { /* ignore */ }
+        _dotnetRef?.Dispose();
+    }
+}

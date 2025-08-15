@@ -1,0 +1,97 @@
+﻿@page "/customers"
+@using ComplianceCrm.UI.Models.Customers
+@using ComplianceCrm.UI.Services
+@using MudBlazor
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<MudStack Spacing="2">
+    <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+        <MudText Typo="Typo.h5">Customers</MudText>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+            New Customer
+        </MudButton>
+    </MudStack>
+
+    <MudTable Items="_items" Dense="true" Hover="true" Bordered="true" Striped="true">
+        <HeaderContent>
+            <MudTh>Id</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Phone</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Id</MudTd>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.Email</MudTd>
+            <MudTd>@context.Phone</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => EditCustomer(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteCustomer(context.Id))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudStack>
+
+@code {
+    private List<CustomerDto> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var data = await Api.GetAsync<List<CustomerDto>>("api/v1/customers?page=1&pageSize=50");
+            _items = data ?? new List<CustomerDto>();
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add($"Failed to load customers: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dlg = Dialog.Show<CustomerDialog>("New Customer");
+        var result = await dlg.Result;
+        if (!result.Canceled)
+            await LoadAsync();
+    }
+
+    private async Task EditCustomer(CustomerDto customer)
+    {
+        var dlg = Dialog.Show<CustomerDialog>("Edit Customer", new DialogParameters { ["ExistingCustomer"] = customer });
+        var result = await dlg.Result;
+        if (!result.Canceled)
+            await LoadAsync();
+    }
+
+    private async Task DeleteCustomer(long id)
+    {
+        var confirmed = await Dialog.ShowMessageBox(
+            "Confirm Delete",
+            $"Are you sure you want to delete customer #{id}?",
+            yesText: "Yes", cancelText: "No"
+        );
+
+        if (confirmed == true)
+        {
+            try
+            {
+                await Api.DeleteAsync($"api/v1/customers/{id}");
+                Snackbar.Add($"Customer #{id} deleted", Severity.Success);
+                await LoadAsync();
+            }
+            catch (HttpRequestException ex)
+            {
+                Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
