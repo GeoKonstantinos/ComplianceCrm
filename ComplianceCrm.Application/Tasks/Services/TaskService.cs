@@ -2,12 +2,9 @@
 using ComplianceCrm.Application.Abstractions.Providers;
 using ComplianceCrm.Application.Abstractions.Services;
 using ComplianceCrm.Application.Common.Paging;
-using ComplianceCrm.Application.Documents.Dtos;
 using ComplianceCrm.Application.Tasks.Dtos;
-using ComplianceCrm.Domain.Audit;
 using ComplianceCrm.Domain.Audit.Enums;
 using ComplianceCrm.Domain.Customers;
-using ComplianceCrm.Domain.Tenants;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -147,5 +144,31 @@ public sealed class TaskService(
         await db.SaveChangesAsync(ct);
 
         await audit.WriteAsync(TargetType.Task, id, BusinessAction.Deleted, "Task deleted", ct: ct);
+    }
+
+    public async System.Threading.Tasks.Task RescheduleAsync(long id, DateTime startUtc, DateTime? endUtc, CancellationToken ct)
+    {
+        var tenantId = tenant.GetTenantId();
+
+        var task = await db.Tasks
+            .Where(t => t.TenantId == tenantId && t.Id == id)
+            .FirstOrDefaultAsync(ct);
+
+        if (task is null)
+            throw new KeyNotFoundException($"Task {id} not found");
+
+        // ✅ Αν το entity σου έχει Start/End:
+        // task.StartDateUtc = startUtc;
+        // task.EndDateUtc = endUtc ?? startUtc.AddHours(1);
+
+        // ✅ Αν έχεις μόνο DueDateUtc στο entity, χρησιμοποίησε αυτό:
+         task.DueDateUtc = startUtc;
+
+        task.UpdatedAtUtc = clock.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+
+        // (Προαιρετικό) Audit log:
+        // await _audit.LogAsync(BusinessAction.Rescheduled, TargetType.Task, task.Id, ...);
     }
 }

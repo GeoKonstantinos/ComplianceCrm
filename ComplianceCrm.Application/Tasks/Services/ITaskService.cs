@@ -10,4 +10,5 @@ public interface ITaskService
     Task UpdateStatusAsync(long taskId, UpdateTaskStatusRequest request, CancellationToken ct = default);
     Task UpdateAsync(long id, UpdateTaskRequest req, CancellationToken ct);
     Task DeleteAsync(long id, CancellationToken ct);
+    Task RescheduleAsync(long id, DateTime startUtc, DateTime? endUtc, CancellationToken ct);
 }

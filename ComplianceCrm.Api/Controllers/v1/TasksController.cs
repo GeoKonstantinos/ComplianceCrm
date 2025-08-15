@@ -61,4 +61,11 @@ public sealed class TasksController : ControllerBase
         await _svc.DeleteAsync(id, ct);
         return NoContent();
     }
+
+    [HttpPut("{id:long}/reschedule")]
+    public async Task<IActionResult> Reschedule(long id, [FromBody] RescheduleTaskRequest req, CancellationToken ct)
+    {
+        await _svc.RescheduleAsync(id, req.StartDateUtc, req.EndDateUtc, ct);
+        return NoContent();
+    }
 }
